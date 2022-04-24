@@ -31,3 +31,14 @@ jobs:
                 CALIBRE_SHOW_DEPRECATION_WARNINGS: 1
               run:
                   python setup/unix-ci.py test
+  
+            - name: Build calibre
+              run:
+                  python setup.py build
+                  python setup.py gui
+
+            - name: Install calibre
+              run:
+                  python setup.pyinstall # binaries
+                  # sudo python setup.py develop # source
+
