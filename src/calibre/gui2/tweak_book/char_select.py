@@ -732,6 +732,7 @@ class CharSelect(Dialog):
 
         self.category_view = CategoryView(self)
         self.category_view.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.category_view.clicked.connect(self.category_view_clicked)
         l.addWidget(s, 1, 0, 1, 3)
         self.char_view = CharView(self)
         self.char_view.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -742,7 +743,7 @@ class CharSelect(Dialog):
         s.addWidget(self.category_view), s.addWidget(self.char_view)
 
         self.char_info = la = QLabel('\xa0')
-        la.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        la.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         l.addWidget(la, 2, 0, 1, 3)
 
         self.rearrange_msg = la = QLabel(_(
@@ -759,6 +760,11 @@ class CharSelect(Dialog):
         h.addWidget(mm), h.addStretch(), h.addWidget(self.bb)
         l.addLayout(h, 4, 0, 1, 3)
         self.char_view.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def category_view_clicked(self):
+        p = self.parent()
+        if p is not None and p.focusWidget() is not None:
+            p.activateWindow()
 
     def do_search(self):
         text = str(self.search.text()).strip()
@@ -793,11 +799,11 @@ class CharSelect(Dialog):
         return QSize(800, 600)
 
     def show_char_info(self, char_code):
+        text = '\xa0'
         if char_code > 0:
             category_name, subcategory_name, character_name = self.category_view.model().get_char_info(char_code)
-            self.char_info.setText(f'{category_name} - {subcategory_name} - {character_name} (U+{char_code:04X})')
-        else:
-            self.char_info.clear()
+            text = _('{character_name} (U+{char_code:04X}) in {category_name} - {subcategory_name}').format(**locals())
+        self.char_info.setText(text)
 
     def show(self):
         self.initialize()

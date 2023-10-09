@@ -103,11 +103,14 @@ class TagEditor(QDialog, Ui_TagEditor):
             connect_lambda(ibox.textChanged, self, lambda self: self.edit_box_changed(self.sender().objectName()))
         getattr(self, gprefs.get('tag_editor_last_filter', 'add_tag_input')).setFocus()
 
+        self.available_tags.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.applied_tags.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         if islinux:
             self.available_tags.doubleClicked.connect(self.apply_tags)
+            self.applied_tags.doubleClicked.connect(self.unapply_tags)
         else:
             self.available_tags.activated.connect(self.apply_tags)
-        self.applied_tags.activated.connect(self.unapply_tags)
+            self.applied_tags.activated.connect(self.unapply_tags)
 
         geom = gprefs.get('tag_editor_geometry', None)
         if geom is not None:
@@ -121,7 +124,7 @@ class TagEditor(QDialog, Ui_TagEditor):
         row_indices = list(self.available_tags.selectionModel().selectedRows())
 
         if not row_indices:
-            error_dialog(self, 'No tags selected', 'You must select at least one tag from the list of Available tags.').exec()
+            error_dialog(self, _('No tags selected'), _('You must select at least one tag from the list of Available tags.')).exec()
             return
         if not confirm(
             _('Deleting tags is done immediately and there is no undo.'),

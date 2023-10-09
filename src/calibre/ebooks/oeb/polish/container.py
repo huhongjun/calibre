@@ -33,7 +33,6 @@ from calibre.ebooks.metadata.opf3 import (
 from calibre.ebooks.metadata.utils import parse_opf_version
 from calibre.ebooks.mobi import MobiError
 from calibre.ebooks.mobi.reader.headers import MetadataHeader
-from calibre.ebooks.mobi.tweak import set_cover
 from calibre.ebooks.oeb.base import (
     DC11_NS, OEB_DOCS, OEB_STYLES, OPF, OPF2_NS, Manifest, itercsslinks, iterlinks,
     rewrite_links, serialize, urlquote, urlunquote
@@ -303,7 +302,10 @@ class Container(ContainerBase):  # {{{
     def refresh_mime_map(self):
         for item in self.opf_xpath('//opf:manifest/opf:item[@href and @media-type]'):
             href = item.get('href')
-            name = self.href_to_name(href, self.opf_name)
+            try:
+                name = self.href_to_name(href, self.opf_name)
+            except ValueError:
+                continue  # special filenames such as CON on windows cause relpath to fail
             mt = item.get('media-type')
             if name in self.mime_map and name != self.opf_name and mt:
                 # some epubs include the opf in the manifest with an incorrect mime type
@@ -324,7 +326,7 @@ class Container(ContainerBase):  # {{{
         }
 
     def clone_data(self, dest_dir):
-        Container.commit(self, keep_parsed=True)
+        Container.commit(self, keep_parsed=False)
         self.cloned = True
         clone_dir(self.root, dest_dir)
         return self.data_for_clone(dest_dir)
@@ -1447,6 +1449,7 @@ def do_explode(path, dest):
 
 def opf_to_azw3(opf, outpath, container):
     from calibre.ebooks.conversion.plumber import Plumber, create_oebbook
+    from calibre.ebooks.mobi.tweak import set_cover
 
     class Item(Manifest.Item):
 
@@ -1463,6 +1466,7 @@ def opf_to_azw3(opf, outpath, container):
     inp = plugin_for_input_format('azw3')
     outp = plugin_for_output_format('azw3')
     plumber.opts.mobi_passthrough = True
+    plumber.opts.keep_ligatures = True
     oeb = create_oebbook(container.log, opf, plumber.opts, specialize=specialize)
     set_cover(oeb)
     outp.convert(oeb, outpath, inp, plumber.opts, container.log)

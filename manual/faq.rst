@@ -388,16 +388,14 @@ do the following:
     address. Also note that Amazon does not allow email delivery of AZW3 and
     new style (KF8) MOBI files. Finally, Amazon recently started sending
     confirmation emails that you have to click on back to your GMX account
-    before the book is actually delivered. They prefer you use Gmail to avoid
-    the confirmation emails. See the note below for setting up Gmail to work
-    with calibre.
+    before the book is actually delivered.
 
 Even after doing this, you may have problems. One common source of problems is that some poorly designed antivirus
 programs block calibre from opening a connection to send email. Try adding an exclusion for calibre in your
 antivirus program.
 
 .. note::
-    Microsoft/Google/GMX can disable your account if you use it to send large
+    Microsoft/GMX can disable your account if you use it to send large
     amounts of email. So, when using these services to send mail calibre automatically
     restricts itself to sending one book every five minutes. If you don't mind
     risking your account being blocked you can reduce this wait interval by going
@@ -407,10 +405,8 @@ antivirus program.
     Google recently deliberately broke their email sending protocol (SMTP) support in
     an attempt to force everyone to use their web interface so they can
     show you more ads. They are trying to claim that SMTP is insecure,
-    that is incorrect and simply an excuse. If you have trouble with
-    Gmail you will need to `setup an app password
-    <https://support.google.com/accounts/answer/185833>`_. Use this app password
-    as the password for Gmail in the calibre settings.
+    that is incorrect and simply an excuse. Use some other email provider
+    instead.
 
 .. note::
     If you are concerned about giving calibre access to your email
@@ -909,7 +905,7 @@ I downloaded the installer, but it is not working?
 Downloading from the Internet can sometimes result in a corrupted download. If the calibre installer you downloaded is not opening, try downloading it again. If re-downloading it does not work, download it from `an alternate location <https://github.com/kovidgoyal/calibre/releases/latest>`_. If the installer still doesn't work, then something on your computer is preventing it from running.
 
     * Try temporarily disabling your antivirus program (Microsoft Security Essentials, or Kaspersky or Norton or McAfee or whatever). This is most likely the culprit if the upgrade process is hanging in the middle.
-    * Similarly, if the installer is failing/rolling and you have Microsoft PowerToys running, quit it.
+    * Similarly, if the installer is failing/rolling back and you have Microsoft PowerToys running, quit it.
     * Try rebooting your computer and running a registry cleaner like `Wise registry cleaner <https://www.wisecleaner.com>`_.
     * Try a clean install. That is, uninstall calibre, delete :file:`C:\\Program Files\\Calibre2` (or wherever you previously chose to install calibre). Then re-install calibre. Note that uninstalling does not touch your books or settings.
     * Try downloading the installer with an alternate browser. For example if you are using Microsoft Edge, try using Firefox or Chrome instead.
@@ -925,8 +921,8 @@ If you still cannot get the installer to work and you are on Windows, you can us
 My antivirus program claims calibre is a virus/trojan?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The first thing to check is that you are downloading calibre from the official
-website: :website:`<download>`. Make sure you are clicking the
+The first thing to check is that you are downloading calibre from the
+:website:`official website <download>`. Make sure you are clicking the
 download links on the left, not the advertisements on the right. calibre is a
 very popular program and unscrupulous people try to setup websites offering it
 for download to fool the unwary.

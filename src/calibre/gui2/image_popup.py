@@ -8,7 +8,7 @@ __docformat__ = 'restructuredtext en'
 from qt.core import (
     QApplication, QCheckBox, QDialog, QDialogButtonBox, QHBoxLayout, QIcon, QImage,
     QLabel, QPainter, QPalette, QPixmap, QScrollArea, QSize, QSizePolicy,
-    QSvgRenderer, Qt, QTransform, QUrl, QVBoxLayout, pyqtSignal
+    QSvgRenderer, Qt, QTransform, QUrl, QVBoxLayout, pyqtSignal, QAction, QKeySequence
 )
 
 from calibre import fit_image
@@ -38,9 +38,11 @@ def render_svg(widget, path):
 class Label(QLabel):
 
     toggle_fit = pyqtSignal()
+    zoom_requested = pyqtSignal(bool)
 
     def __init__(self, scrollarea):
         super().__init__(scrollarea)
+        scrollarea.zoom_requested.connect(self.zoom_requested)
         self.setBackgroundRole(QPalette.ColorRole.Text if QApplication.instance().is_dark_theme else QPalette.ColorRole.Base)
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
         self.setScaledContents(True)
@@ -86,10 +88,23 @@ class Label(QLabel):
 class ScrollArea(QScrollArea):
 
     toggle_fit = pyqtSignal()
+    zoom_requested = pyqtSignal(bool)
+    current_wheel_angle_delta = 0
 
     def mouseDoubleClickEvent(self, ev):
         if ev.button() == Qt.MouseButton.LeftButton:
             self.toggle_fit.emit()
+
+    def wheelEvent(self, ev):
+        if ev.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            ad = ev.angleDelta().y()
+            if ad * self.current_wheel_angle_delta < 0:
+                self.current_wheel_angle_delta = 0
+            self.current_wheel_angle_delta += ad
+            if abs(self.current_wheel_angle_delta) >= 120:
+                self.zoom_requested.emit(self.current_wheel_angle_delta < 0)
+                self.current_wheel_angle_delta = 0
+            ev.accept()
 
 
 class ImageView(QDialog):
@@ -111,6 +126,7 @@ class ImageView(QDialog):
         sa.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
         sa.setBackgroundRole(QPalette.ColorRole.Dark)
         self.label = l = Label(sa)
+        l.zoom_requested.connect(self.zoom_requested)
         sa.toggle_fit.connect(self.toggle_fit)
         sa.setWidget(l)
 
@@ -120,16 +136,23 @@ class ImageView(QDialog):
         self.zi_button = zi = bb.addButton(_('Zoom &in'), QDialogButtonBox.ButtonRole.ActionRole)
         self.zo_button = zo = bb.addButton(_('Zoom &out'), QDialogButtonBox.ButtonRole.ActionRole)
         self.save_button = so = bb.addButton(_('&Save as'), QDialogButtonBox.ButtonRole.ActionRole)
+        self.copy_button = co = bb.addButton(_('&Copy'), QDialogButtonBox.ButtonRole.ActionRole)
         self.rotate_button = ro = bb.addButton(_('&Rotate'), QDialogButtonBox.ButtonRole.ActionRole)
         self.fullscreen_button = fo = bb.addButton(_('&Full screen'), QDialogButtonBox.ButtonRole.ActionRole)
         zi.setIcon(QIcon(I('plus.png')))
         zo.setIcon(QIcon(I('minus.png')))
         so.setIcon(QIcon(I('save.png')))
+        co.setIcon(QIcon.ic('edit-copy.png'))
         ro.setIcon(QIcon(I('rotate-right.png')))
         fo.setIcon(QIcon(I('page.png')))
         zi.clicked.connect(self.zoom_in)
         zo.clicked.connect(self.zoom_out)
         so.clicked.connect(self.save_image)
+        co.clicked.connect(self.copy_image)
+        self.copy_action = QAction(self)
+        self.addAction(self.copy_action)
+        self.copy_action.triggered.connect(self.copy_button.click)
+        self.copy_action.setShortcut(QKeySequence.StandardKey.Copy)
         ro.clicked.connect(self.rotate_image)
         fo.setCheckable(True)
 
@@ -171,6 +194,10 @@ class ImageView(QDialog):
         actual_height = self.current_img.size().height()
         return scaled_height / actual_height
 
+    def zoom_requested(self, zoom_out):
+        if (zoom_out and self.zo_button.isEnabled()) or (not zoom_out and self.zi_button.isEnabled()):
+            (self.zoom_out if zoom_out else self.zoom_in)()
+
     def zoom_in(self):
         if self.fit_image.isChecked():
             factor = self.factor_from_fit()
@@ -195,6 +222,10 @@ class ImageView(QDialog):
         if f:
             from calibre.utils.img import save_image
             save_image(self.current_img.toImage(), f)
+
+    def copy_image(self):
+        if self.current_img and not self.current_img.isNull():
+            QApplication.instance().clipboard().setPixmap(self.current_img)
 
     def fit_changed(self):
         fitted = bool(self.fit_image.isChecked())
@@ -273,12 +304,6 @@ class ImageView(QDialog):
                 self.showMaximized()
             else:
                 self.showNormal()
-
-    def wheelEvent(self, event):
-        d = event.angleDelta().y()
-        if abs(d) > 0 and not self.scrollarea.verticalScrollBar().isVisible():
-            event.accept()
-            (self.zoom_out if d < 0 else self.zoom_in)()
 
 
 class ImagePopup:

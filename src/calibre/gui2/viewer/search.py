@@ -6,17 +6,19 @@ import regex
 from collections import Counter, OrderedDict
 from html import escape
 from qt.core import (
-    QCheckBox, QComboBox, QFont, QHBoxLayout, QIcon, QLabel, Qt, QToolButton,
-    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget, pyqtSignal
+    QAbstractItemView, QCheckBox, QComboBox, QFont, QHBoxLayout, QIcon, QLabel, Qt,
+    QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget, pyqtSignal
 )
 from threading import Thread
 
 from calibre.ebooks.conversion.search_replace import REGEX_FLAGS
 from calibre.gui2 import warning_dialog
+from calibre.gui2.gestures import GestureManager
 from calibre.gui2.progress_indicator import ProgressIndicator
 from calibre.gui2.viewer.config import vprefs
 from calibre.gui2.viewer.web_view import get_data, get_manifest
 from calibre.gui2.viewer.widgets import ResultsDelegate, SearchBox
+from calibre.utils.icu import primary_collator_without_punctuation
 from polyglot.builtins import iteritems
 from polyglot.functools import lru_cache
 from polyglot.queue import Queue
@@ -310,11 +312,21 @@ def toc_nodes_for_search_result(sr):
 
 def search_in_name(name, search_query, ctx_size=75):
     raw = searchable_text_for_name(name)[0]
-    for match in search_query.regex.finditer(raw):
-        start, end = match.span()
+
+    if search_query.mode == 'regex' or search_query.case_sensitive:
+        def miter():
+            for match in search_query.regex.finditer(raw):
+                yield match.span()
+    else:
+        spans = []
+        a = lambda s, l: spans.append((s, s + l))
+        primary_collator_without_punctuation().find_all(search_query.text, raw, a, search_query.mode == 'word')
+        miter = lambda: spans
+
+    for (start, end) in miter():
         before = raw[max(0, start-ctx_size):start]
         after = raw[end:end+ctx_size]
-        yield before, match.group(), after, start
+        yield before, raw[start:end], after, start
 
 
 class SearchInput(QWidget):  # {{{
@@ -366,8 +378,10 @@ class SearchInput(QWidget):  # {{{
         qt.addItem(_('Regex'), 'regex')
         qt.setToolTip('<p>' + _(
             'Choose the type of search: <ul>'
-            '<li><b>Contains</b> will search for the entered text anywhere.'
-            '<li><b>Whole words</b> will search for whole words that equal the entered text.'
+            '<li><b>Contains</b> will search for the entered text anywhere. It will ignore punctuation,'
+            ' spaces and accents, unless Case sensitive searching is enabled.'
+            '<li><b>Whole words</b> will search for whole words that equal the entered text. As with'
+            ' "Contains" searches punctuation and accents are ignored.'
             '<li><b>Regex</b> will interpret the text as a regular expression.'
         ))
         qt.setCurrentIndex(qt.findData(vprefs.get(f'viewer-{self.panel_name}-mode', 'normal') or 'normal'))
@@ -471,6 +485,17 @@ class Results(QTreeWidget):  # {{{
         self.section_map = {}
         self.search_results = []
         self.item_map = {}
+        self.gesture_manager = GestureManager(self)
+        self.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+
+    def viewportEvent(self, ev):
+        try:
+            ret = self.gesture_manager.handle_event(ev)
+        except AttributeError:
+            ret = None
+        if ret is not None:
+            return ret
+        return super().viewportEvent(ev)
 
     def current_item_changed(self, current, previous):
         if current is not None:

@@ -286,7 +286,7 @@ class Float(Int):
         self.widgets = [QLabel(label_string(self.col_metadata['name']), parent)]
         self.finish_ui_setup(parent, ClearingDoubleSpinBox)
         self.editor.setRange(-1000000., float(100000000))
-        self.editor.setDecimals(2)
+        self.editor.setDecimals(int(self.col_metadata['display'].get('decimals', 2)))
 
 
 class Rating(Base):
@@ -759,10 +759,13 @@ def column_is_comments(key, fm):
             fm[key].get('display', {}).get('interpret_as') != 'short-text')
 
 
-def get_field_list(db, use_defaults=False):
+def get_field_list(db, use_defaults=False, pref_data_override=None):
     fm = db.field_metadata
     fields = fm.custom_field_keys(include_composites=False)
-    displayable = db.prefs.get('edit_metadata_custom_columns_to_display', None)
+    if pref_data_override is not None:
+        displayable = pref_data_override
+    else:
+        displayable = db.prefs.get('edit_metadata_custom_columns_to_display', None)
     if use_defaults or displayable is None:
         fields.sort(key=partial(field_sort_key, fm=fm))
         return [(k, True) for k in fields]
@@ -1095,7 +1098,7 @@ class BulkFloat(BulkInt):
     def setup_ui(self, parent):
         self.make_widgets(parent, QDoubleSpinBox)
         self.main_widget.setRange(-1000000., float(100000000))
-        self.main_widget.setDecimals(2)
+        self.main_widget.setDecimals(int(self.col_metadata['display'].get('decimals', 2)))
         self.finish_ui_setup(parent)
 
     def set_to_undefined(self):

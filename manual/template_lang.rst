@@ -217,6 +217,7 @@ General Program Mode
     or_expression   ::= and_expression [ '||' and_expression ]*
     and_expression  ::= not_expression [ '&&' not_expression ]*
     not_expression  ::= [ '!' not_expression ]* | compare_exp
+    concatenate_expr::= compare_expr [ '&' compare_expr ]*
     compare_expr    ::= add_sub_expr [ compare_op add_sub_expr ]
     compare_op      ::= '==' | '!=' | '>=' | '>' | '<=' | '<' | 'in' | 'inlist' |
                         '==#' | '!=#' | '>=#' | '>#' | '<=#' | '<#'
@@ -227,13 +228,15 @@ General Program Mode
     unary_op_expr   ::= [ add_sub_op unary_op_expr ]* | expression
     expression      ::= identifier | constant | function | assignment | field_reference |
                         if_expr | for_expr | break_expr | continue_expr |
-                        '(' expression_list ')'
+                        '(' expression_list ')' | function_def
     field_reference ::= '$' [ '$' ] [ '#' ] identifier
     identifier      ::= id_start [ id_rest ]*
     id_start        ::= letter | underscore
     id_rest         ::= id_start | digit
     constant        ::= " string " | ' string ' | number
     function        ::= identifier '(' expression_list [ ',' expression_list ]* ')'
+    function_def    ::= 'def' identifier '(' top_expression [ ',' top_expression ]* ')' ':'
+                        expression_list 'fed'
     assignment      ::= identifier '=' top_expression
     if_expr         ::= 'if' condition 'then' expression_list
                         [ elif_expr ] [ 'else' expression_list ] 'fi'
@@ -265,6 +268,7 @@ The operator precedence (order of evaluation) from highest (evaluated first) to 
 * Multiply (``*``) and divide (``/``). These operators are associative and evaluate left to right. Use parentheses if you want to change the order of evaluation.
 * Add (``+``) and subtract (``-``). These operators are associative and evaluate left to right.
 * Numeric and string comparisons. These operators return ``'1'`` if the comparison succeeds, otherwise the empty string (``''``). Comparisons are not associative: ``a < b < c`` is a syntax error.
+* String concatenation (``&``). The ``&`` operator returns a string formed by concatenating the left-hand and right-hand expressions. Example: ``'aaa' & 'bbb'`` returns ``'aaabbb'``. The operator is associative and evaluates left to right.
 * Unary logical not (``!``). This operator returns ``'1'`` if the expression is False (evaluates to the empty string), otherwise ``''``.
 * Logical and (``&&``). This operator returns '1' if both the left-hand and right-hand expressions are True, or the empty string ``''`` if either is False. It is associative, evaluates left to right, and does `short-circuiting <https://chortle.ccsu.edu/java5/Notes/chap40/ch40_2.html>`_.
 * Logical or (``||``). This operator returns ``'1'`` if either the left-hand or right-hand expression is True, or ``''`` if both are False. It is associative, evaluates left to right, and does `short-circuiting <https://chortle.ccsu.edu/java5/Notes/chap40/ch40_2.html>`_. It is an `inclusive or`, returning ``'1'`` if both the left- and right-hand expressions are True.
@@ -336,6 +340,31 @@ If the original Genre is `History.Military, Science Fiction.Alternate History, R
 :guilabel:`Edit metadata in bulk -> Search & replace` with :guilabel:`Search for` set to ``template`` to strip off the first level of the hierarchy and assign the resulting value to Genre.
 
 Note: the last line in the template, ``new_tags``, isn't strictly necessary in this case because ``for`` returns the value of the last top_expression in the expression list. The value of an assignment is the value of its expression, so the value of the ``for`` statement is what was assigned to ``new_tags``.
+
+**Function definition**
+
+If you have code in a template that repeats then you can put that code into a local function. The ``def`` keyword starts the definition. It is followed by the function name, the argument list, then the code in the function. The function definition ends with the ``fed`` keyword.
+
+Arguments are positional. When a function is called the supplied arguments are matched left to right against the defined parameters, with the value of the argument assigned to the parameter. It is an error to provide more arguments than defined parameters. Parameters can have default values, such as ``a = 25``. If an argument is not supplied for that parameter then the default value is used, otherwise the parameter is set to the empty string.
+
+The ``return`` statement can be used in a local function.
+
+A function must be defined before it can be used.
+
+Example: This template computes an approximate duration in years, months, and days from a number of days. The function ``to_plural()`` formats the computed values. Note that the example also uses the ``&`` operator::
+
+  program:
+  	days = 2112;
+	years = floor(days/360);
+	months = floor(mod(days, 360)/30);
+	days = days - ((years*360) + (months * 30));
+
+	def to_plural(v, str):
+		if v == 0 then return '' fi;
+		return v & ' ' & (if v == 1 then str else str & 's' fi) & ' '
+	fed;
+
+	to_plural(years, 'year') & to_plural(months, 'month') & to_plural(days,'day')
 
 **Relational operators**
 
@@ -472,6 +501,24 @@ In `GPM` the functions described in `Single Function Mode` all require an additi
 * ``list_difference(list1, list2, separator)`` -- return a list made by removing from ``list1`` any item found in ``list2`` using a case-insensitive comparison. The items in ``list1`` and ``list2`` are separated by separator, as are the items in the returned list.
 * ``list_equals(list1, sep1, list2, sep2, yes_val, no_val)`` -- return ``yes_val`` if ``list1`` and `list2` contain the same items, otherwise return ``no_val``. The items are determined by splitting each list using the appropriate separator character (``sep1`` or ``sep2``). The order of items in the lists is not relevant. The comparison is case-insensitive.
 * ``list_intersection(list1, list2, separator)`` -- return a list made by removing from ``list1`` any item not found in ``list2``, using a case-insensitive comparison. The items in ``list1`` and ``list2`` are separated by separator, as are the items in the returned list.
+* ``list_join(with_separator, list1, separator1 [, list2, separator2]*)`` -- return a list made by joining the items in the source lists (``list1`` etc) using ``with_separator`` between the items in the result list. Items in each source ``list[123...]`` are separated by the associated ``separator[123...]``. A list can contain zero values. It can be a field like ``publisher`` that is single-valued, effectively a one-item list. Duplicates are removed using a case-insensitive comparison. Items are returned in the order they appear in the source lists. If items on lists differ only in letter case then the last is used. All separators can be more than one character.
+
+  Example::
+
+    program:
+      list_join('#@#', $authors, '&', $tags, ',')
+
+  You can use ``list_join`` on the results of previous calls to ``list_join`` as follows::
+
+    program:
+      a = list_join('#@#', $authors, '&', $tags, ',');
+      b = list_join('#@#', a, '#@#', $#genre, ',', $#people, '&', 'some value', ',')
+
+  You can use expressions to generate a list. For example, assume you want items for ``authors`` and ``#genre``, but with the genre changed to the word "Genre: " followed by the first letter of the genre, i.e. the genre "Fiction" becomes "Genre: F". The following will do that::
+
+    program:
+      list_join('#@#', $authors, '&', list_re($#genre, ',', '^(.).*$', 'Genre: \1'),  ',')
+
 * ``list_re(src_list, separator, include_re, opt_replace)`` -- Construct a list by first separating ``src_list`` into items using the ``separator`` character. For each item in the list, check if it matches ``include_re``. If it does then add it to the list to be returned. If ``opt_replace`` is not the empty string then apply the replacement before adding the item to the returned list.
 * ``list_re_group(src_list, separator, include_re, search_re [, template_for_group]*)`` -- Like list_re except replacements are not optional. It uses ``re_group(item, search_re, template ...)`` when doing the replacements.
 * ``list_remove_duplicates(list, separator)`` -- return a list made by removing duplicate items in ``list``. If items differ only in case then the last is returned. The items in ``list`` are separated by ``separator``, as are the items in the returned list.

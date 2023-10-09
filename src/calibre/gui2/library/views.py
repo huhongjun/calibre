@@ -304,6 +304,7 @@ class BooksView(QTableView):  # {{{
         # {{{ Column Header setup
         self.can_add_columns = True
         self.was_restored = False
+        self.allow_save_state = True
         self.column_header = HeaderView(Qt.Orientation.Horizontal, self)
         self.pin_view.column_header = HeaderView(Qt.Orientation.Horizontal, self.pin_view)
         self.setHorizontalHeader(self.column_header)
@@ -515,11 +516,29 @@ class BooksView(QTableView):  # {{{
 
     def show_row_header_context_menu(self, pos):
         menu = QMenu(self)
-        menu.addAction(_('Hide row numbers'), self.hide_row_numbers)
+        # Even when hidden, row numbers show if any marks show, which is why it makes
+        # sense to offer "show row numbers" here. Saves having to go to Preferences
+        # Look & feel, assuming you know the trick.
+        if gprefs['row_numbers_in_book_list']:
+            menu.addAction(_('Hide row numbers'), partial(self.hide_row_numbers, show=False))
+        else:
+            menu.addAction(_('Show row numbers'), partial(self.hide_row_numbers, show=True))
+        db = self._model.db
+        row = self.row_header.logicalIndexAt(pos)
+        if row >= 0 and row < len(db.data):
+            book_id_col = db.field_metadata['id']['rec_index']
+            book_id = db.data[row][book_id_col]
+            m = menu.addAction(_('Toggle mark for book'), lambda: db.data.toggle_marked_ids({book_id,}))
+            ic = QIcon.ic('marked.png')
+            m.setIcon(ic)
+            from calibre.gui2.actions.mark_books import mark_books_with_text
+            m = menu.addAction(_('Mark book with text label'), partial(mark_books_with_text, {book_id,}))
+            m.setIcon(ic)
         menu.popup(self.mapToGlobal(pos))
 
-    def hide_row_numbers(self):
-        gprefs['row_numbers_in_book_list'] = False
+    # Probably should change the method name, but leave it for compatibility
+    def hide_row_numbers(self, show=False):
+        gprefs['row_numbers_in_book_list'] = show
         self.set_row_header_visibility()
 
     def show_column_header_context_menu(self, pos, view=None):
@@ -692,7 +711,7 @@ class BooksView(QTableView):  # {{{
 
     def save_state(self):
         # Only save if we have been initialized (set_database called)
-        if len(self.column_map) > 0 and self.was_restored:
+        if len(self.column_map) > 0 and self.was_restored and self.allow_save_state:
             state = self.get_state()
             self.write_state(state)
             if self.is_library_view:
@@ -725,7 +744,9 @@ class BooksView(QTableView):  # {{{
                     saved_history)[:max_sort_levels]):
                 self.sort_by_column_and_order(self.column_map.index(col), order)
 
-    def apply_state(self, state, max_sort_levels=3):
+    def apply_state(self, state, max_sort_levels=3, save_state=True):
+        # set save_state=False if you will save the state yourself after calling
+        # this method.
         h = self.column_header
         cmap = {}
         hidden = state.get('hidden_columns', [])
@@ -739,13 +760,21 @@ class BooksView(QTableView):  # {{{
         for col, pos in positions.items():
             if col in cmap:
                 pmap[pos] = col
+        need_save_state = False
+        # Resetting column positions triggers a save state. There can be a lot
+        # of these. Batch them up and do it at the end.
+        # Can't use blockSignals() because that prevents needed processing somewhere
+        self.allow_save_state = False
         for pos in sorted(pmap.keys()):
             col = pmap[pos]
             idx = cmap[col]
             current_pos = h.visualIndex(idx)
             if current_pos != pos:
+                need_save_state = True
                 h.moveSection(current_pos, pos)
-
+        self.allow_save_state = True
+        if need_save_state and save_state:
+            self.save_state()
         # Because of a bug in Qt 5 we have to ensure that the header is actually
         # relaid out by changing this value, without this sometimes ghost
         # columns remain visible when changing libraries
@@ -866,6 +895,9 @@ class BooksView(QTableView):  # {{{
 
         self.was_restored = True
 
+    def refresh_composite_edit(self):
+        self.cc_template_delegate.refresh()
+
     def refresh_row_sizing(self):
         self.row_sizing_done = False
         self.do_row_sizing()
@@ -932,12 +964,16 @@ class BooksView(QTableView):  # {{{
                 # This is needed otherwise Qt does not always update the
                 # viewport correctly. See https://bugs.launchpad.net/bugs/1404697
                 self.row_header.viewport().update()
+            # refresh the rows because there might be a composite that uses marked_books()
+            self.model().refresh_rows(changed)
         else:
             # Marked items have either appeared or all been removed
             self.model().set_row_decoration(current_marked)
             self.row_header.headerDataChanged(Qt.Orientation.Vertical, 0, self.row_header.count()-1)
             self.row_header.geometriesChanged.emit()
             self.set_row_header_visibility()
+            # refresh the rows because there might be a composite that uses marked_books()
+            self.model().refresh_rows(current_marked)
 
     def set_row_header_visibility(self):
         visible = self.model().row_decoration is not None or gprefs['row_numbers_in_book_list']
@@ -1143,7 +1179,9 @@ class BooksView(QTableView):  # {{{
         if self.pin_view.isVisible():
             self.pin_view.horizontalScrollBar().setValue(pv_hpos)
 
-    def set_current_row(self, row=0, select=True, for_sync=False):
+    def set_current_row(self, row=0, select=True, for_sync=False, book_id=None):
+        if book_id is not None:
+            row = self.model().db.data.id_to_index(book_id)
         if row > -1 and row < self.model().rowCount(QModelIndex()):
             h = self.horizontalHeader()
             logical_indices = list(range(h.count()))
@@ -1225,6 +1263,10 @@ class BooksView(QTableView):  # {{{
     def keyPressEvent(self, ev):
         if handle_enter_press(self, ev):
             return
+        if ev.key() == Qt.Key.Key_F2:
+            key = self.column_map[self.currentIndex().column()]
+            if self._model.db.field_metadata[key]['datatype'] == 'composite':
+                self.cc_template_delegate.allow_one_edit()
         return QTableView.keyPressEvent(self, ev)
 
     def ids_to_rows(self, ids):

@@ -37,7 +37,7 @@ class POT(Command):  # {{{
         kw['cwd'] = kw.get('cwd', self.TRANSLATIONS)
         if hasattr(cmd, 'format'):
             cmd = shlex.split(cmd)
-        cmd = ['tx', '--traceback'] + cmd
+        cmd = [os.environ.get('TX', 'tx')] + cmd
         self.info(' '.join(cmd))
         return subprocess.check_call(cmd, **kw)
 
@@ -230,7 +230,7 @@ class POT(Command):  # {{{
             subprocess.check_call(['xgettext', '-f', fl.name,
                 '--default-domain=calibre', '-o', out.name, '-L', 'Python',
                 '--from-code=UTF-8', '--sort-by-file', '--omit-header',
-                '--no-wrap', '-k__', '--add-comments=NOTE:',
+                '--no-wrap', '-k__', '-kpgettext:1c,2', '--add-comments=NOTE:',
                 ])
             subprocess.check_call(['xgettext', '-j',
                 '--default-domain=calibre', '-o', out.name,
@@ -690,7 +690,7 @@ class GetTranslations(Translations):  # {{{
         if opts.check_for_errors:
             self.check_all()
             return
-        self.tx('pull -a --parallel --no-interactive')
+        self.tx('pull -a')
         if not self.is_modified:
             self.info('No translations were updated')
             return

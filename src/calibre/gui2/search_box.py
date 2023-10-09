@@ -244,6 +244,8 @@ class SearchBox2(QComboBox):  # {{{
 
     def timer_event(self):
         self._do_search(as_you_type=True)
+        # since this is an automatic search keep focus
+        self.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def history_selected(self, text):
         self.changed.emit()
@@ -275,6 +277,7 @@ class SearchBox2(QComboBox):  # {{{
 
     def do_search(self, *args):
         self._do_search()
+        self.timer.stop()
 
     def block_signals(self, yes):
         self.blockSignals(yes)
