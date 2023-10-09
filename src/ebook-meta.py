@@ -1,0 +1,23 @@
+#! /usr/bin/python3.10
+
+"""
+This is the standard runscript for all of calibre's tools.
+Do not modify it unless you know what you are doing.
+"""
+
+import sys, os
+
+path = os.environ.get('CALIBRE_PYTHON_PATH', '/usr/lib/calibre')
+path = os.environ.get('CALIBRE_PYTHON_PATH', '/home/axe/nfs/workshop/01-work-ospr/ws_calibre/calibre/src/calibre')
+
+if path not in sys.path:
+    sys.path.insert(0, path)
+
+sys.resources_location = os.environ.get('CALIBRE_RESOURCES_PATH', '/usr/share/calibre')
+sys.extensions_location = os.environ.get('CALIBRE_EXTENSIONS_PATH', '/usr/lib/calibre/calibre/plugins')
+sys.executables_location = os.environ.get('CALIBRE_EXECUTABLES_PATH', '/usr/bin')
+sys.system_plugins_location = None
+
+
+from calibre.ebooks.metadata.cli import main
+sys.exit(main())
